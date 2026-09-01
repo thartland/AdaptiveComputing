@@ -64,13 +64,12 @@ def bayesian_1d_mf():
                                    )
     
     ac_driver.add_samples(np.array([[0.5], [5.0], [9.5]]), i_fidelity=0)
-    ac_driver.add_samples(np.array([[0.5], [5.0], [9.5]]), i_fidelity=1)
+    ac_driver.add_samples(np.array([[0.25], [5.5], [9.25]]), i_fidelity=1)
 
     print('Before first manager run:')
     print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
 
     manager.run_until_done(i_fidelity=0)
-    ac_driver.hero_wait_for_data_and_train()
     manager.run_until_done(i_fidelity=1)
     ac_driver.hero_wait_for_data_and_train()
 
@@ -79,24 +78,25 @@ def bayesian_1d_mf():
     print(f'_y_data       = {ac_driver.dataset._y_data}')
     print(f'_hero_todo    = {ac_driver.dataset._hero_todo}')
     print(f'_unmasked_data = {ac_driver.dataset._unmasked_data}')
-    #ac_driver.run(N_steps = 4)
+    ac_driver.run(N_steps = 10)
+    ac_driver.hero_wait_for_data_and_train()
 
-    ## plot the result
-    #plt.figure(figsize=(10, 6))
-    #plt.scatter(ac_driver.dataset.x_data[0], ac_driver.dataset.y_data[0], marker='o', color='b', label='Low fidelity')
-    #plt.scatter(ac_driver.dataset.x_data[1], ac_driver.dataset.y_data[1], marker='s', color='r', label='High fidelity')
-    #plt.xlabel('x_data')
-    #plt.ylabel('y_data')
-    #plt.title('Bayesian 1D Multi-Fidelity Optimization')
-    #plt.legend()
-    #plt.savefig('bayesian_1d_mf_result.png', dpi=150, bbox_inches='tight')
-    #print("Plot saved as 'bayesian_1d_mf_result.png'")
-    #
-    ## Try to show plot if backend supports it
-    #try:
-    #    plt.show()
-    #except Exception as e:
-    #    print(f"Interactive display failed ({e}), but plot was saved")
+    # plot the result
+    plt.figure(figsize=(10, 6))
+    plt.scatter(ac_driver.dataset.x_data[0], ac_driver.dataset.y_data[0], marker='o', color='b', label='Low fidelity')
+    plt.scatter(ac_driver.dataset.x_data[1], ac_driver.dataset.y_data[1], marker='s', color='r', label='High fidelity')
+    plt.xlabel('x_data')
+    plt.ylabel('y_data')
+    plt.title('Bayesian 1D Multi-Fidelity Optimization')
+    plt.legend()
+    plt.savefig('bayesian_1d_mf_result.png', dpi=150, bbox_inches='tight')
+    print("Plot saved as 'bayesian_1d_mf_result.png'")
+    
+    # Try to show plot if backend supports it
+    try:
+        plt.show()
+    except Exception as e:
+        print(f"Interactive display failed ({e}), but plot was saved")
     
     return ac_driver
 
