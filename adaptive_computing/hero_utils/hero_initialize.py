@@ -1,4 +1,3 @@
-from hero import HeroClient, get_env_variable
 import sys
 
 from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
@@ -26,6 +25,7 @@ def hero_initialize(task_id, machine_name, i_fidelity=0, task_engine=None):
         RuntimeError:       Authentication failed or the Hero API call failed.
     """
     if task_engine is None:
+        from hero import HeroClient, get_env_variable
         set_hero_env_vars()
         try:
             hero_env     = get_env_variable('HERO_ENV', 'dev')

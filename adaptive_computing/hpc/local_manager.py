@@ -299,6 +299,28 @@ class LocalHPCManager(ABC):
         finally:
             os.chdir(original_cwd)
 
+    def run_forever(self, i_fidelity: int = 0) -> None:
+        """Process Hero tasks indefinitely — daemon mode for a tmux manager session.
+
+        Loops forever: runs :meth:`run_until_done` until the queue empties,
+        sleeps :attr:`poll_interval` seconds, then checks again.  Tasks added
+        by the controller while the queue is idle are picked up on the next
+        iteration.  Interrupt with Ctrl-C or ``SIGTERM`` to stop.
+
+        Args:
+            i_fidelity: Fidelity level index (0 for single-fidelity).
+        """
+        print(
+            f"Starting daemon mode — polling every {self.poll_interval}s. "
+            "Press Ctrl-C to stop."
+        )
+        while True:
+            self.run_until_done(i_fidelity=i_fidelity)
+            print(
+                f"Queue empty — sleeping {self.poll_interval}s before next check..."
+            )
+            time.sleep(self.poll_interval)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
