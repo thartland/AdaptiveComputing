@@ -13,7 +13,11 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
                  task_formatter=None, inline_manager=None, hero_client=None):
         self.use_hero = True
         if dataset is None:
-            dataset = HeroDataset(params, machine_names, output_field_path, n_fidelity=1, blocking=blocking,
+            if isinstance(simulations, list):
+                n_fidelity = len(simulations)
+            else:
+                n_fidelity = 1
+            dataset = HeroDataset(params, machine_names, output_field_path, n_fidelity=n_fidelity, blocking=blocking,
                                 task_formatter=task_formatter, nan_behavior=nan_behavior,
                                 hero_client=hero_client)
         self.dataset = dataset
@@ -101,7 +105,7 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
 
         while pending:
             vars_pending = np.array([
-                float(tmp_surrogate.predict_variances(x[[i]]))
+                float(tmp_surrogate.predict_variances(x[[i]])[0][0])
                 for i in pending
             ])
 
@@ -171,9 +175,10 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
             f"Hero driver query only supports 'absolute_variance', got '{error_criterion}'"
 
         x = np.asarray(points)
-
+        #print(x)
+        #print(self.surrogate.predict_variances(x[[0]]))
         variances = np.array([
-            float(self.surrogate.predict_variances(x[[i]]))
+            float(self.surrogate.predict_variances(x[[i]])[0][0])
             for i in range(len(x))
         ])
 
