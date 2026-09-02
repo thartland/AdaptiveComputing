@@ -3,8 +3,8 @@
 #SBATCH --nodes=1
 # TODO: update the two lines below for your HPC system before running.
 # Run 'sinfo' to list partitions and 'sacctmgr show user $USER' for your account.
-#SBATCH --partition=
-#SBATCH --account=
+#SBATCH --partition=pdebug
+#SBATCH --account=asccasc
 #SBATCH --job-name=hf_simulation
 #SBATCH --output=out_%j.out
 #SBATCH --error=err_%j.err
@@ -35,7 +35,7 @@ conda activate hero
 
 
 # Run mock simulation (replace with your real simulation commands)
-echo "Running mock lf simulation with x=$x for task-id=$task_id"
+echo "Running mock hf simulation with x=$x for task-id=$task_id"
 output=$(python hf_simulation.py -x "$x")
 echo "$output"
 

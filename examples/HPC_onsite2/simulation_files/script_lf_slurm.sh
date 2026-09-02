@@ -3,8 +3,8 @@
 #SBATCH --nodes=1
 # TODO: update the two lines below for your HPC system before running.
 # Run 'sinfo' to list partitions and 'sacctmgr show user $USER' for your account.
-#SBATCH --partition=
-#SBATCH --account=
+#SBATCH --partition=pdebug
+#SBATCH --account=asccasc
 #SBATCH --job-name=lf_simulation
 #SBATCH --output=out_%j.out
 #SBATCH --error=err_%j.err
