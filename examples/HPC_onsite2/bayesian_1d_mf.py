@@ -31,7 +31,7 @@ set_matplotlib_backend()
 
 import matplotlib.pyplot as plt
 from adaptive_computing.datasets import ContinuousVariable
-from adaptive_computing.drivers import ActiveLoopDriverHero
+from adaptive_computing.drivers import ActiveLoopDriverHeroCostRatio
 from adaptive_computing.local_hero import LocalHeroClient
 from manager import create_manager
 import numpy as np
@@ -51,8 +51,8 @@ def bayesian_1d_mf():
 
     params = [ContinuousVariable(min=0, max=10)]
 
-    ac_driver = ActiveLoopDriverHero(simulations=[None, None],
-                                   fidelity_costs=[1,10],
+    ac_driver = ActiveLoopDriverHeroCostRatio(simulations=[None, None],
+                                   fidelity_costs=[1,1000],
                                    params=params,
                                    machine_names = [manager.machine_name],
                                    output_field_path='y_data',

@@ -14,3 +14,8 @@ try:
 except ImportError:
     # Hero not available - this is expected in basic AC environment
     pass
+
+try:
+    from adaptive_computing.drivers.hero_cost_ratio import ActiveLoopDriverHeroCostRatio
+except ImportError:
+    pass
