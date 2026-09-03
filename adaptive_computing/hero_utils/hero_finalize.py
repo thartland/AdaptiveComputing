@@ -42,19 +42,19 @@ def hero_finalize(cond, task_id, machine_name, i_fidelity=0, task_engine=None):
     if cond == -1:
         print(f"Task {task_id}: state = error, metadata = {current_task['metadata']}")
         current_task['metadata']['y_data'] = cond
+        current_task['metadata']['running'][machine_name] = False
         task_engine.update_task(
             task_id=task_id, state='error',
             name=current_task['name'], metadata=current_task['metadata'],
         )
-        current_task['metadata']['running'][machine_name] = False
     else:
         print(f"Task {task_id}: state = done, metadata = {current_task['metadata']}")
         current_task['metadata']['y_data'] = [cond]
+        current_task['metadata']['running'][machine_name] = False
         task_engine.update_task(
             task_id=task_id, state='done',
             name=current_task['name'], metadata=current_task['metadata'],
         )
-        current_task['metadata']['running'][machine_name] = False
 
 
 if __name__ == "__main__":

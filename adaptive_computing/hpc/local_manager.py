@@ -591,8 +591,14 @@ class LocalHPCManager(ABC):
                 )
                 if not _call_hero_finalize(result_value, task["id"], machine_name, i_fidelity, task_engine):
                     print(f"WARNING: hero_finalize failed for task {task['id']}")
-                meta["scheduler_job_id"][machine_name] = -1
-                meta["running"][machine_name] = False
+                # Re-read so we don't overwrite y_data written by hero_finalize,
+                # then clear the stale scheduler job ID and persist.
+                refreshed_meta = task_engine.read_task(task["id"])["metadata"]
+                refreshed_meta["scheduler_job_id"][machine_name] = -1
+                task_engine.update_task(
+                    task_id=task["id"], state="done",
+                    name=task["name"], metadata=refreshed_meta,
+                )
 
             elif status == "FAILED":
                 print(f"Job {job_id} failed for running task {task['id']}.")
