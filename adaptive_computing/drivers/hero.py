@@ -77,7 +77,7 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
         if self.inline_manager is not None:
             self.inline_manager.run_until_done(i_fidelity=fi_eval)
             self.hero_wait_for_data_and_train()
-        if self.retrain:
+        elif self.retrain:
             self.surrogate.train(self.dataset)
 
     def _kb_select(self, x, threshold):
