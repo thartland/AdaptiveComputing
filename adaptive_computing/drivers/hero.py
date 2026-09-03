@@ -178,8 +178,6 @@ class ActiveLoopDriverHero(ActiveLoopDriver):
             f"Hero driver query only supports 'absolute_variance', got '{error_criterion}'"
 
         x = np.asarray(points)
-        #print(x)
-        #print(self.surrogate.predict_variances(x[[0]]))
         variances = np.array([
             float(self.surrogate.predict_variances(x[[i]])[0][0])
             for i in range(len(x))
