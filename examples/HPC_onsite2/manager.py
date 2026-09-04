@@ -68,7 +68,7 @@ def create_manager(scheduler_type='slurm', hero_client=None, script_names=None):
         A ready-to-use :class:`MockSimManager` instance.
     """
     # overwrite script name with defaults if they are not provided
-    if script_names == None:
+    if script_names is None:
       if scheduler_type == 'pbs':
         script_name_list = ['script_generic_pbs.sh']
       else:
