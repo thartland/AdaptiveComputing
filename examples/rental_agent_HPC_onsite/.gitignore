@@ -1,0 +1,9 @@
+# Runtime files generated during runs
+checkpoint_*.db
+checkpoint_*.db-shm
+checkpoint_*.db-wal
+hero_db*.json
+result_*.txt
+manager.log
+slurm_*.out
+slurm_*.err
