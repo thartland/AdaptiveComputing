@@ -58,6 +58,7 @@ import subprocess
 import sys
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 
 from .manager_base import (
     JobLimitError,
@@ -209,118 +210,245 @@ class LocalHPCManager(ABC):
     # Main entry point
     # ------------------------------------------------------------------
 
-    def run_until_done(self, i_fidelity: int = 0) -> None:
-        """Process all Hero tasks in the queue until none remain active.
-
-        Authenticates with Hero, runs startup reconciliation to reset any
-        stale job IDs from a previous run, then polls the queue in a loop.
-        Exits when the count of ``ready`` + ``running`` tasks drops to zero
-        (all tasks are ``done`` or ``error``).
-
-        If :attr:`simulation_dir` is set, the working directory is temporarily
-        changed there for the duration of this call so that ``SLURM_SUBMIT_DIR``
-        equals ``simulation_dir`` and result files land in the expected location.
-        The original working directory is restored on return (even on error).
-
-        Args:
-            i_fidelity: Fidelity level index (0 for single-fidelity).
+    def run_until_done(
+        self,
+        i_fidelity: int | None = None,
+        *,
+        i_fidelities: Iterable[int] | None = None,
+    ) -> None:
+        """Process one or more fidelity queues until all are inactive.
+    
+        This method is backward compatible with the original interface:
+    
+            run_until_done()
+            run_until_done(i_fidelity=0)
+    
+        Multiple queues can be processed together using:
+    
+            run_until_done(i_fidelities=[0, 1])
+    
+        Each queue is polled during every manager cycle. Consequently, jobs
+        from all selected fidelity levels are submitted before the manager
+        sleeps and can execute concurrently in the scheduler.
+    
+        Parameters
+        ----------
+        i_fidelity
+            A single fidelity level. If neither argument is supplied,
+            fidelity zero is used.
+        i_fidelities
+            Fidelity levels to process concurrently. This is mutually
+            exclusive with ``i_fidelity``.
         """
+        if i_fidelity is not None and i_fidelities is not None:
+            raise ValueError(
+                "Specify either i_fidelity or i_fidelities, not both."
+            )
+    
+        if i_fidelities is None:
+            fidelities = (0 if i_fidelity is None else int(i_fidelity),)
+        else:
+            # Preserve input order while removing duplicates.
+            fidelities = tuple(
+                dict.fromkeys(int(level) for level in i_fidelities)
+            )
+    
+        if not fidelities:
+            raise ValueError("i_fidelities cannot be empty.")
+    
+        if any(level < 0 for level in fidelities):
+            raise ValueError("Fidelity indices must be nonnegative.")
+    
+        if max(fidelities) >= len(self.batch_scripts):
+            raise ValueError(
+                f"Requested fidelity {max(fidelities)}, but only "
+                f"{len(self.batch_scripts)} batch script(s) are configured."
+            )
+    
+        # --------------------------------------------------------------
+        # Construct the Hero client and base queue information once.
+        # --------------------------------------------------------------
         if self.hero_client is not None:
-            hero           = self.hero_client
-            hero_queue     = getattr(self.hero_client, 'queue_name', 'local')
-            application_id = getattr(self.hero_client, 'application_id', 'local')
+            hero = self.hero_client
+            hero_queue = getattr(self.hero_client, "queue_name", "local")
+            application_id = getattr(
+                self.hero_client,
+                "application_id",
+                "local",
+            )
         else:
             from hero import HeroClient, get_env_variable
-            from adaptive_computing.hero_utils.set_hero_env_vars import set_hero_env_vars
+    
+            from adaptive_computing.hero_utils.set_hero_env_vars import (
+                set_hero_env_vars,
+            )
+    
             set_hero_env_vars()
+    
             try:
-                hero_env     = get_env_variable("HERO_ENV", "dev")
+                hero_env = get_env_variable("HERO_ENV", "dev")
                 hero_project = get_env_variable("HERO_PROJECT")
-                hero_queue   = get_env_variable("HERO_QUEUE")
-            except EnvironmentError as e:
-                print(e)
+                hero_queue = get_env_variable("HERO_QUEUE")
+            except EnvironmentError as exc:
+                print(exc)
                 sys.exit(1)
+    
             application_id = f"{hero_env}-{hero_project}"
             hero = HeroClient()
-
-        queue_name = hero_queue if i_fidelity == 0 else hero_queue + str(i_fidelity)
+    
         machine_name = self.machine_name
         scheduler_type = self.scheduler_type
-
         task_engine = hero.TaskEngine(application_id)
+    
         try:
             hero.authenticate()
-        except Exception as e:
-            print(f"ERROR: Hero authentication failed: {e}")
+        except Exception as exc:
+            print(f"ERROR: Hero authentication failed: {exc}")
             sys.exit(1)
-
-        try:
-            queue_record = task_engine.read_queue_by_name(name=queue_name, state="active")
-            print(f"Found existing active queue: {queue_name}")
-        except Exception:
-            print(f"No active queue found, creating new queue: {queue_name}")
-            queue_record = task_engine.add_queue(name=queue_name)
-
+    
+        # --------------------------------------------------------------
+        # Resolve the queue associated with each fidelity.
+        # --------------------------------------------------------------
+        queue_records = {}
+    
+        for level in fidelities:
+            queue_name = (
+                hero_queue
+                if level == 0
+                else f"{hero_queue}{level}"
+            )
+    
+            try:
+                queue_record = task_engine.read_queue_by_name(
+                    name=queue_name,
+                    state="active",
+                )
+                print(
+                    f"Found existing active queue for fidelity "
+                    f"{level}: {queue_name}"
+                )
+            except Exception:
+                print(
+                    f"No active queue found for fidelity {level}; "
+                    f"creating queue: {queue_name}"
+                )
+                queue_record = task_engine.add_queue(name=queue_name)
+    
+            queue_records[level] = queue_record
+    
         print(f"Scheduler type: {scheduler_type}")
-
-        # Temporarily chdir into simulation_dir so SLURM_SUBMIT_DIR matches
-        # the location of mock_simulation.py and result files.
+        print(f"Processing fidelity queues: {list(fidelities)}")
+    
+        # --------------------------------------------------------------
+        # Run one joint polling loop.
+        # --------------------------------------------------------------
         original_cwd = os.getcwd()
+    
         try:
             if self.simulation_dir is not None:
                 if os.path.isdir(self.simulation_dir):
                     os.chdir(self.simulation_dir)
                 else:
                     print(
-                        f"WARNING: simulation_dir '{self.simulation_dir}' not found; "
+                        f"WARNING: simulation_dir "
+                        f"'{self.simulation_dir}' not found; "
                         "skipping chdir."
                     )
-
-            self._reconcile(task_engine, queue_record, machine_name, scheduler_type)
-
-            print(f"Processing queue — polling every {self.poll_interval}s...")
-            while True:
-                self._poll_cycle(
-                    task_engine, queue_record, machine_name, i_fidelity, scheduler_type
+    
+            # Reconcile every selected queue before submitting new jobs.
+            for level, queue_record in queue_records.items():
+                print(f"Reconciling fidelity {level}...")
+                self._reconcile(
+                    task_engine,
+                    queue_record,
+                    machine_name,
+                    scheduler_type,
                 )
-
-                n_ready = len(task_engine.read_tasks(
-                    queue_id=queue_record["id"], metatype="Task", state="ready"
-                ))
-                n_running = len(task_engine.read_tasks(
-                    queue_id=queue_record["id"], metatype="Task", state="running"
-                ))
-                if n_ready + n_running == 0:
-                    print("All tasks complete (done or error). Exiting manager loop.")
+    
+            print(
+                f"Processing queues — polling every "
+                f"{self.poll_interval}s..."
+            )
+    
+            while True:
+                total_ready = 0
+                total_running = 0
+    
+                # Each call is nonblocking: it checks jobs, submits new
+                # jobs, and returns. Therefore every fidelity queue is
+                # serviced before the sleep below.
+                for level, queue_record in queue_records.items():
+                    print(f"\n--- Fidelity {level} ---")
+    
+                    self._poll_cycle(
+                        task_engine,
+                        queue_record,
+                        machine_name,
+                        level,
+                        scheduler_type,
+                    )
+    
+                # Only exit once all selected queues are inactive.
+                for level, queue_record in queue_records.items():
+                    n_ready = len(
+                        task_engine.read_tasks(
+                            queue_id=queue_record["id"],
+                            metatype="Task",
+                            state="ready",
+                        )
+                    )
+    
+                    n_running = len(
+                        task_engine.read_tasks(
+                            queue_id=queue_record["id"],
+                            metatype="Task",
+                            state="running",
+                        )
+                    )
+    
+                    print(
+                        f"Fidelity {level}: "
+                        f"{n_ready} ready, {n_running} running"
+                    )
+    
+                    total_ready += n_ready
+                    total_running += n_running
+    
+                if total_ready + total_running == 0:
+                    print(
+                        "All tasks in all selected fidelity queues are "
+                        "complete (done or error)."
+                    )
                     break
-
+    
                 time.sleep(self.poll_interval)
-
+    
         finally:
             os.chdir(original_cwd)
 
-    def run_forever(self, i_fidelity: int = 0) -> None:
-        """Process Hero tasks indefinitely — daemon mode for a tmux manager session.
-
-        Loops forever: runs :meth:`run_until_done` until the queue empties,
-        sleeps :attr:`poll_interval` seconds, then checks again.  Tasks added
-        by the controller while the queue is idle are picked up on the next
-        iteration.  Interrupt with Ctrl-C or ``SIGTERM`` to stop.
-
-        Args:
-            i_fidelity: Fidelity level index (0 for single-fidelity).
-        """
+    def run_forever(
+        self,
+        i_fidelity: int | None = None,
+        *,
+        i_fidelities: Iterable[int] | None = None,
+    ) -> None:
+        """Continuously process one or more fidelity queues."""
         print(
-            f"Starting daemon mode — polling every {self.poll_interval}s. "
-            "Press Ctrl-C to stop."
+            f"Starting daemon mode — polling every "
+            f"{self.poll_interval}s. Press Ctrl-C to stop."
         )
+    
         while True:
-            self.run_until_done(i_fidelity=i_fidelity)
+            self.run_until_done(
+                i_fidelity=i_fidelity,
+                i_fidelities=i_fidelities,
+            )
+    
             print(
-                f"Queue empty — sleeping {self.poll_interval}s before next check..."
+                f"Queues empty — sleeping {self.poll_interval}s "
+                "before checking again..."
             )
             time.sleep(self.poll_interval)
-
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

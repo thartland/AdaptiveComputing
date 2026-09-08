@@ -31,7 +31,7 @@ set_matplotlib_backend()
 
 import matplotlib.pyplot as plt
 from adaptive_computing.datasets import ContinuousVariable
-from adaptive_computing.drivers import ActiveLoopDriverHeroCostRatio
+from adaptive_computing.drivers import ActiveLoopDriverHeroMFSEGO
 from adaptive_computing.local_hero import LocalHeroClient
 from manager import create_manager
 import numpy as np
@@ -51,13 +51,13 @@ def bayesian_1d_mf():
 
     params = [ContinuousVariable(min=0, max=10)]
 
-    ac_driver = ActiveLoopDriverHeroCostRatio(simulations=[None, None],
-                                   fidelity_costs=[1,1000],
+    ac_driver = ActiveLoopDriverHeroMFSEGO(simulations=[None, None],
+                                   fidelity_costs=[1,10],
                                    params=params,
                                    machine_names = [manager.machine_name],
                                    output_field_path='y_data',
                                    surrogate='SMT_GP',
-                                   acq_func='maximum_variance',
+                                   acq_func='expected_improvement',
                                    blocking=False,
                                    inline_manager=manager,
                                    hero_client=local_hero,
@@ -69,8 +69,8 @@ def bayesian_1d_mf():
     print('Before first manager run:')
     print(f'_hero_todo = {ac_driver.dataset._hero_todo}')
 
-    manager.run_until_done(i_fidelity=0)
-    manager.run_until_done(i_fidelity=1)
+    active_fidelities = [0, 1]
+    manager.run_until_done(i_fidelities=sorted(active_fidelities))
     ac_driver.hero_wait_for_data_and_train()
 
     print('After first manager run:')
@@ -78,7 +78,7 @@ def bayesian_1d_mf():
     print(f'_y_data       = {ac_driver.dataset._y_data}')
     print(f'_hero_todo    = {ac_driver.dataset._hero_todo}')
     print(f'_unmasked_data = {ac_driver.dataset._unmasked_data}')
-    ac_driver.run(N_steps = 10, batch_size=2)
+    ac_driver.run(N_steps = 10, batch_size=3)
     ac_driver.hero_wait_for_data_and_train()
 
     # plot the result

@@ -19,3 +19,8 @@ try:
     from adaptive_computing.drivers.hero_cost_ratio import ActiveLoopDriverHeroCostRatio
 except ImportError:
     pass
+
+try:
+    from adaptive_computing.drivers.hero_mfsego import ActiveLoopDriverHeroMFSEGO
+except ImportError:
+    pass
