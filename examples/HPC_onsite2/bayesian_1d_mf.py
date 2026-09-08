@@ -78,7 +78,7 @@ def bayesian_1d_mf():
     print(f'_y_data       = {ac_driver.dataset._y_data}')
     print(f'_hero_todo    = {ac_driver.dataset._hero_todo}')
     print(f'_unmasked_data = {ac_driver.dataset._unmasked_data}')
-    ac_driver.run(N_steps = 10)
+    ac_driver.run(N_steps = 10, batch_size=2)
     ac_driver.hero_wait_for_data_and_train()
 
     # plot the result

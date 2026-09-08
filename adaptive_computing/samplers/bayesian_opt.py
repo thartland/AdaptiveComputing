@@ -99,7 +99,7 @@ class BayesianSampler(SamplerBase):
                 if len(masked_idx) > 0:
                     has_masked_data = True
                     x_masked = dataset._x_data[i_fid][masked_idx]
-                    y_pred = surrogate.predict_values(x_masked)
+                    y_pred = surrogate.predict_values(x_masked, fidelity_level=i_fid,)
                     if y_pred.ndim == 1:
                         y_pred = y_pred.reshape(-1, 1)
                     phantom_x[i_fid] = x_masked
