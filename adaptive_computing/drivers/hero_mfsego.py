@@ -88,22 +88,34 @@ class ActiveLoopDriverHeroMFSEGO(ActiveLoopDriverHero):
         has_pending_data = False
 
         for i_fidelity in range(self.dataset.n_fidelity):
-            y_data = self.dataset._y_data[i_fidelity]
-            mask = np.ma.getmaskarray(y_data)
+            #y_data = self.dataset._y_data[i_fidelity]
+            #mask = np.ma.getmaskarray(y_data)
 
-            if mask.ndim == 1:
-                pending_idx = mask
-            else:
-                pending_idx = np.all(mask, axis=1)
+            #if mask.ndim == 1:
+            #    pending_idx = mask
+            #else:
+            #    pending_idx = np.all(mask, axis=1)
+            pending_idx = np.asarray(self.dataset._hero_todo[i_fidelity], dtype=bool).reshape(-1)
+
+            x_data = np.asarray(self.dataset._x_data[i_fidelity])
+
+            if pending_idx.size != x_data.shape[0]:
+                raise RuntimeError(
+                        f"Inconsistent HERO dataset at fidelity {i_fidelity}:"
+                        f"{pending_idx.size} todo flags for"
+                        f"{x_data.shape[0]} input points.")
+
+
 
             if not np.any(pending_idx):
                 continue
 
             has_pending_data = True
 
-            x_pending = np.asarray(
-                self.dataset._x_data[i_fidelity]
-            )[pending_idx]
+            #x_pending = np.asarray(
+            #    self.dataset._x_data[i_fidelity]
+            #)[pending_idx]
+            x_pending = x_data[pending_idx]
 
             # Important: fantasize using the corresponding fidelity.
             y_pending = self.surrogate.predict_values(

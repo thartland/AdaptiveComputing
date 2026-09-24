@@ -2,12 +2,16 @@ import argparse
 import logging
 import numpy as np
 
+
+
 def func_hf(x):
-    return (x-3)**2 + 0.1 * np.sin(x)
+    return ((6. * x - 2.)**2.) * np.sin(12. * x - 4.)
+    #return ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2)
+    #return (x-3)**2 + 0.1 * np.sin(x)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Run LF synthetic objective simulation"
+        description="Run HF synthetic objective simulation"
     )
     parser.add_argument(
         "--x",
