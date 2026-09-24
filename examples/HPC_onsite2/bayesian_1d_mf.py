@@ -32,6 +32,7 @@ set_matplotlib_backend()
 import matplotlib.pyplot as plt
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriverHeroMFSEGO
+from adaptive_computing.drivers import ActiveLoopDriverHeroCostRatio
 from adaptive_computing.local_hero import LocalHeroClient
 from manager import create_manager
 import numpy as np
@@ -39,14 +40,19 @@ import argparse
 
 
 
-def bayesian_1d_mf(seed):
+def bayesian_1d_mf(seed, mfsego=True):
 
 
     # Single shared client — the dataset and manager both read/write the same
     # JSON file, giving them a consistent view without any network calls.
-    local_hero = LocalHeroClient(
-        db_path=os.path.join(os.path.dirname(__file__), 'local_hero_db.json'),
-    )
+    if mfsego:
+        local_hero = LocalHeroClient(
+            db_path=os.path.join(os.path.dirname(__file__), 'local_hero_db.json'),
+        )
+    else:
+        local_hero = LocalHeroClient(
+            db_path=os.path.join(os.path.dirname(__file__), 'local_hero_cost_ratio_db.json'),
+        )
 
     scheduler_type = 'slurm'
     script_names = ['script_lf_slurm.sh', 'script_hf_slurm.sh']
@@ -54,17 +60,31 @@ def bayesian_1d_mf(seed):
 
     params = [ContinuousVariable(min=0, max=1)]
 
-    ac_driver = ActiveLoopDriverHeroMFSEGO(simulations=[None, None],
-                                   fidelity_costs=[1.,3.],
-                                   params=params,
-                                   machine_names = [manager.machine_name],
-                                   output_field_path='y_data',
-                                   surrogate='SMT_GP',
-                                   acq_func='expected_improvement',
-                                   blocking=False,
-                                   inline_manager=manager,
-                                   hero_client=local_hero,
-                                   )
+    if mfsego:
+        ac_driver = ActiveLoopDriverHeroMFSEGO(simulations=[None, None],
+                                       fidelity_costs=[1.,3.],
+                                       params=params,
+                                       machine_names = [manager.machine_name],
+                                       output_field_path='y_data',
+                                       surrogate='SMT_GP',
+                                       acq_func='expected_improvement',
+                                       blocking=False,
+                                       inline_manager=manager,
+                                       hero_client=local_hero,
+                                       )
+    else:
+        ac_driver = ActiveLoopDriverHeroCostRatio(simulations=[None, None],
+                                       fidelity_costs=[1.,3.],
+                                       params=params,
+                                       machine_names = [manager.machine_name],
+                                       output_field_path='y_data',
+                                       surrogate='SMT_GP',
+                                       acq_func='expected_improvement',
+                                       blocking=False,
+                                       inline_manager=manager,
+                                       hero_client=local_hero,
+                                       )
+
    
     ac_driver.sampler._rand_seed = seed
     ac_driver.init_sampler._rand_seed = seed
@@ -118,24 +138,31 @@ def bayesian_1d_mf(seed):
     return ac_driver
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run LF synthetic objective simulation"
-    )
-    parser.add_argument(
-        "--seed",
-        "-seed",
-        type=int,
-        default=42,
-        help="Random seed.",
-    )
-    args = parser.parse_args()
-    
-    ac_driver = bayesian_1d_mf(args.seed)
-    print(ac_driver.dataset.x_data[0])
-    print(ac_driver.dataset.x_data[1])
-    print(ac_driver.dataset.y_data[0])
-    print(ac_driver.dataset.y_data[1])
+    #parser = argparse.ArgumentParser(
+    #    description="Run LF synthetic objective simulation"
+    #)
+    #parser.add_argument(
+    #    "--seed",
+    #    "-seed",
+    #    type=int,
+    #    default=42,
+    #    help="Random seed.",
+    #)
+    #args = parser.parse_args()
+    seeds = [42]
 
     y_true_min = -6.02074005576708
-    print(abs(min(ac_driver.dataset.y_data[1]) - y_true_min))
+    for seed in seeds:
+        ac_driver_sego = bayesian_1d_mf(seed, True)
+        ac_driver_cost_ratio = bayesian_1d_mf(seed, False)
+        
+        #sego_cost = ac_driver_sego.dataset.x_data 
+
+
+    #print(ac_driver.dataset.x_data[0])
+    #print(ac_driver.dataset.x_data[1])
+    #print(ac_driver.dataset.y_data[0])
+    #print(ac_driver.dataset.y_data[1])
+
+    #print(abs(min(ac_driver.dataset.y_data[1]) - y_true_min))
 
