@@ -31,7 +31,7 @@ cd "$SLURM_SUBMIT_DIR"
 
 # Load environment.
 eval "$(conda shell.bash hook)"
-conda activate xfoil
+conda activate hero
 
 
 # Run mock simulation (replace with your real simulation commands)
