@@ -16,7 +16,18 @@ except ImportError:
     pass
 
 try:
+    from adaptive_computing.drivers.hero_batched_mf import ActiveLoopDriverHeroBatchedMF
+except ImportError:
+    pass
+
+
+try:
     from adaptive_computing.drivers.hero_cost_ratio import ActiveLoopDriverHeroCostRatio
+except ImportError:
+    pass
+
+try:
+    from adaptive_computing.drivers.hero_cost_ratio_nested import ActiveLoopDriverHeroCostRatioNested
 except ImportError:
     pass
 

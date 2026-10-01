@@ -32,11 +32,13 @@ set_matplotlib_backend()
 import matplotlib.pyplot as plt
 from adaptive_computing.datasets import ContinuousVariable
 from adaptive_computing.drivers import ActiveLoopDriverHeroMFSEGO
-from adaptive_computing.drivers import ActiveLoopDriverHeroCostRatio
+from adaptive_computing.drivers import ActiveLoopDriverHeroCostRatioNested
 from adaptive_computing.local_hero import LocalHeroClient
 from manager import create_manager
 import numpy as np
 import argparse
+
+Y_TRUE_MIN = -6.02074005576708
 
 
 
@@ -71,9 +73,11 @@ def bayesian_1d_mf(seed, mfsego=True):
                                        blocking=False,
                                        inline_manager=manager,
                                        hero_client=local_hero,
+                                       reference_minimum=Y_TRUE_MIN,
+                                       mfsego_cost_power=1.0,
                                        )
     else:
-        ac_driver = ActiveLoopDriverHeroCostRatio(simulations=[None, None],
+        ac_driver = ActiveLoopDriverHeroCostRatioNested(simulations=[None, None],
                                        fidelity_costs=[1.,3.],
                                        params=params,
                                        machine_names = [manager.machine_name],
@@ -83,6 +87,7 @@ def bayesian_1d_mf(seed, mfsego=True):
                                        blocking=False,
                                        inline_manager=manager,
                                        hero_client=local_hero,
+                                       reference_minimum=Y_TRUE_MIN,
                                        )
 
    
@@ -111,6 +116,7 @@ def bayesian_1d_mf(seed, mfsego=True):
     print(f'_unmasked_data = {ac_driver.dataset._unmasked_data}')
     ac_driver.run(N_steps = 4, batch_size=2)
     ac_driver.hero_wait_for_data_and_train()
+    print(f'cost/regret pairs = {ac_driver.total_cost_regret_pairs}')
 
     # plot the result
     #plt.figure(figsize=(10, 6))
@@ -138,31 +144,15 @@ def bayesian_1d_mf(seed, mfsego=True):
     return ac_driver
 
 if __name__ == "__main__":
-    #parser = argparse.ArgumentParser(
-    #    description="Run LF synthetic objective simulation"
-    #)
-    #parser.add_argument(
-    #    "--seed",
-    #    "-seed",
-    #    type=int,
-    #    default=42,
-    #    help="Random seed.",
-    #)
-    #args = parser.parse_args()
     seeds = [42]
 
-    y_true_min = -6.02074005576708
     for seed in seeds:
         ac_driver_sego = bayesian_1d_mf(seed, True)
         ac_driver_cost_ratio = bayesian_1d_mf(seed, False)
-        
-        #sego_cost = ac_driver_sego.dataset.x_data 
-
-
-    #print(ac_driver.dataset.x_data[0])
-    #print(ac_driver.dataset.x_data[1])
-    #print(ac_driver.dataset.y_data[0])
-    #print(ac_driver.dataset.y_data[1])
-
-    #print(abs(min(ac_driver.dataset.y_data[1]) - y_true_min))
-
+        history_sego = np.asarray(ac_driver_sego.total_cost_regret_pairs, dtype=float) 
+        history_cost_ratio = np.asarray(ac_driver_cost_ratio.total_cost_regret_pairs, dtype=float) 
+        plt.plot(history_sego[:,0], history_sego[:,1], label="MFSEGO")
+        plt.plot(history_cost_ratio[:,0], history_cost_ratio[:,1], label="MF cost ratio")
+        plt.grid()
+        plt.legend()
+        plt.show()

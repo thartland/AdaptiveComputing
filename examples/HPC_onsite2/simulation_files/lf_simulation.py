@@ -2,10 +2,14 @@ import argparse
 import logging
 import numpy as np
 
-from hf_simulation import func_hf 
+try:
+    from .hf_simulation import func_hf 
+except ImportError:
+    from hf_simulation import func_hf
+
 
 def func_lf(x):
-    return 0.5 * func_hf(x) + 10. * (x - 0.5) - 5.0
+    return 0.5 * func_hf(x) + 10. * (x - 0.5) - 5.0 
     #return 0.5 * ((x * 6 - 2) ** 2) * np.sin((x * 6 - 2) * 2) + (x - 0.5) * 10.0 - 5
     #return (x-3)**2
 
