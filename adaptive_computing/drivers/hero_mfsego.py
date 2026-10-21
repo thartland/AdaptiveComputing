@@ -96,6 +96,16 @@ class ActiveLoopDriverHeroMFSEGO(ActiveLoopDriverHeroBatchedMF):
 
         variance_contributions = level_variances * transfer
         variance_reduction = np.cumsum(variance_contributions, axis=1)
+       
+        cumulative_reduction = variance_reduction
+        total_reduction = cumulative_reduction[:,-1]
+        lf_fraction = np.divide(
+                cumulative_reduction[:,0],
+                total_reduction,
+                out=np.zeros_like(total_reduction),
+                where=total_reduction>0.0)
+
+
 
 
         # Selecting level k requests every missing lower level as well.
@@ -109,6 +119,15 @@ class ActiveLoopDriverHeroMFSEGO(ActiveLoopDriverHeroBatchedMF):
         # highest level rather than silently defaulting to level zero.
         all_zero = np.all(np.isclose(scores, 0.0), axis=1)
         scores[all_zero, -1] = np.inf
+        
+        print("level variances:", level_variances[0])
+        print("rho squared:", rho_squared)
+        print("variance_reduction:", variance_reduction[0])
+        print("cumulative_reduction:", cumulative_reduction[0])
+        print("LF variance fraction:", lf_fraction[0])
+        print("normalized_cost:", normalized_cost)
+        print("cost_penalty:", cost_penalty)
+        print("MFSEGO scores:", scores[0])
         return scores
 
     def get_next_sample(self):
