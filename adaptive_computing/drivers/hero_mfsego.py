@@ -109,8 +109,15 @@ class ActiveLoopDriverHeroMFSEGO(ActiveLoopDriverHeroBatchedMF):
 
                 transfer[:, k] *= np.clip(rho_j, 0.0, np.inf)
 
-        variance_contributions = level_variances * transfer
-        variance_reduction = np.cumsum(variance_contributions, axis=1)
+        # SMT's predict_variances_all_levels returns, for level k, the TOTAL
+        # posterior variance at level k.  With propagate_uncertainty=True
+        # (SMT's default) MSE[:, k] already contains rho_{k-1}^2 * MSE[:, k-1],
+        # so it is already cumulative over the lower levels.  Sampling levels
+        # 0..k therefore removes transfer_k * MSE_k from the top-level
+        # variance.  Do not cumsum again: that counts every lower level twice
+        # and, for two levels, makes the HF score 2*rho^2*s0 + s_delta instead
+        # of rho^2*s0 + s_delta.
+        variance_reduction = level_variances * transfer
        
         cumulative_reduction = variance_reduction
         total_reduction = cumulative_reduction[:,-1]
@@ -275,14 +282,16 @@ class ActiveLoopDriverHeroMFSEGO(ActiveLoopDriverHeroBatchedMF):
             )
         )
 
-        # expected_improvement.py returns negative EI because the sampler
-        # minimizes acquisition functions.
-        new_ei = max(-new_acquisition, 0.0)
+        # expected_improvement.py returns -log(EI + 1e-30) because the
+        # sampler minimizes acquisition functions.  Undo the log here; the
+        # previous max(-acq, 0) gave max(log EI, 0), which is zero whenever
+        # EI < 1 and therefore disabled promotion almost always.
+        new_ei = float(np.exp(-new_acquisition))
 
         if promotion_acquisition is None:
             promotion_ei = None
         else:
-            promotion_ei = max(-promotion_acquisition, 0.0)
+            promotion_ei = float(np.exp(-promotion_acquisition))
 
         promote = False
 
@@ -349,12 +358,15 @@ class ActiveLoopDriverHeroMFSEGO(ActiveLoopDriverHeroBatchedMF):
             else:
                 i_fidelity = int(np.argmax(scores[0]))
 
+        # Safety net shared with the cost-ratio driver: after
+        # max_low_fidelity_streak consecutive LF-only selections, force HF.
+        if self._must_select_high_fidelity():
+            i_fidelity = highest_fidelity
+
         self.last_mfsego_scores = scores[0].copy()
         self.last_mfsego_eligible = eligible.copy()
         self.last_selected_fidelity = i_fidelity
 
-        # Preserve your existing max_low_fidelity_streak update here if it
-        # currently lives inside get_next_sample().
         return x, i_fidelity
 
         #scores = self._mfsego_scores(x, kb_surrogate)

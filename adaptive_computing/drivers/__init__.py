@@ -35,3 +35,13 @@ try:
     from adaptive_computing.drivers.hero_mfsego import ActiveLoopDriverHeroMFSEGO
 except ImportError:
     pass
+
+try:
+    from adaptive_computing.drivers.hero_mf_promotion import ActiveLoopDriverHeroMFPromotion
+except ImportError:
+    pass
+
+try:
+    from adaptive_computing.drivers.hero_mf_information import ActiveLoopDriverHeroMFInfo
+except ImportError:
+    pass

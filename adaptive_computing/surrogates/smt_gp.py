@@ -19,7 +19,7 @@ class SMT_GP(SurrogateModelBase):
         predict_variances(x_data, fidelity_level=-1): Predicts variances using the surrogate model.
     """
     
-    def __init__(self, dataset, smt_kwargs=None, design_space=None, i_output=0):
+    def __init__(self, dataset, smt_kwargs=None, design_space=None, i_output=0, mfk_kwargs=None):
         """
         Initializes the SMT_GP with the dataset and optional SMT-specific keyword arguments.
         
@@ -30,6 +30,10 @@ class SMT_GP(SurrogateModelBase):
             i_output (int, optional): Index of output dimension to model (for multi-output datasets). Defaults to 0.
                 SMT Kriging models only support single outputs, so this parameter specifies which
                 output dimension from a multi-output dataset should be used.
+            mfk_kwargs (dict, optional): Extra keyword arguments for the multi-fidelity (MFK) levels
+                only, merged over smt_kwargs. Use it for MFK-only options that the level-0 KRG
+                rejects, e.g. {"rho_regr": "linear"}. While a level has too few points to fit a
+                non-constant rho regression, that level is trained with rho_regr="constant".
         """
         super().__init__(dataset)
         
@@ -43,6 +47,10 @@ class SMT_GP(SurrogateModelBase):
 
         if smt_kwargs is None:
             smt_kwargs = {}
+        mfk_kwargs = {**smt_kwargs, **(mfk_kwargs or {})}
+        self.rho_used = [None] * self.n_fidelity  # rho_regr actually used at the last train
+        self._n_in = dataset.n_in
+        self._rho_requested = {}
             
         # Get design space from dataset if available
         if design_space is None and hasattr(dataset, 'design_space'):
@@ -56,7 +64,7 @@ class SMT_GP(SurrogateModelBase):
                 print("Note: Mixed-type optimization using KRG surrogate with discrete enumeration in acquisition optimization")
             elif self.multifidelity and i_fidelity > 0:
                 self.surrogate_model.append(MFK(
-                    **smt_kwargs,
+                    **mfk_kwargs,
                     print_global=False))
             else:
                 self.surrogate_model.append(KRG(
@@ -82,9 +90,38 @@ class SMT_GP(SurrogateModelBase):
                 y_ii_selected = y_data[ii_fidelity][:, self.i_output:self.i_output+1]
                 self.surrogate_model[i_fidelity].set_training_values(x_data[ii_fidelity], y_ii_selected, name=ii_fidelity)
             self.surrogate_model[i_fidelity].set_training_values(x_data[i_fidelity], y_selected)
-            self.surrogate_model[i_fidelity].train()
+            self._train_level(i_fidelity, x_data[i_fidelity].shape[0])
         
         self.untrained = False
+
+    _N_REGR_TERMS = {"constant": lambda d: 1, "linear": lambda d: d + 1,
+                     "quadratic": lambda d: (d + 1) * (d + 2) // 2}
+
+    def _train_level(self, i_fidelity, n_points):
+        """Train one level. An MFK level whose rho regression has more terms than its
+        points can support (n_points <= rho terms + delta trend terms), or that fails to
+        train with it, is trained with a constant rho instead. SMT reads rho_regr again at
+        prediction time, so the fallback stays in the options until the next train, which
+        retries the requested rho."""
+        model = self.surrogate_model[i_fidelity]
+        if not isinstance(model, MFK):
+            model.train()
+            return
+        requested = self._rho_requested.setdefault(i_fidelity, model.options["rho_regr"])
+        model.options["rho_regr"] = requested
+        if requested != "constant":
+            n_terms = self._N_REGR_TERMS[requested](self._n_in) + self._N_REGR_TERMS[model.options["poly"]](self._n_in)
+            if n_points > n_terms:
+                try:
+                    model.train()
+                    self.rho_used[i_fidelity] = requested
+                    return
+                except (ValueError, np.linalg.LinAlgError) as exc:
+                    print(f"Note: MFK level {i_fidelity} failed to train with rho_regr={requested!r} ({exc}); "
+                          "using 'constant' until the next train")
+            model.options["rho_regr"] = "constant"
+        model.train()
+        self.rho_used[i_fidelity] = "constant"
 
     def predict_values(self, x_data, fidelity_level=-1):
         """
